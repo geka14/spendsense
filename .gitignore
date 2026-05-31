@@ -1,0 +1,11 @@
+# Secrets & local data — never commit
+.env
+credentials.json
+token.json
+*.db
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/

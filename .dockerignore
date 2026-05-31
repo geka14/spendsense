@@ -1,0 +1,10 @@
+.env
+credentials.json
+token.json
+*.db
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+tests/
+.DS_Store

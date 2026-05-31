@@ -1,0 +1,13 @@
+Yth. Pemegang Kartu Kredit BCA,
+
+Terima kasih telah bertransaksi menggunakan Kartu Kredit BCA:
+
+Nomor Customer   : 0000000019648761
+Nomor Kartu      : 431657XXXX8545
+Merchant / ATM   : SKS MKG
+Jenis Transaksi  : DOMESTIK
+Otentikasi       : TRANSAKSI MENGGUNAKAN PIN
+Pada Tanggal     : 31-05-2026 11:44:07 WIB
+Sejumlah         : Rp354.200,00
+
+Selalu jaga keamanan fisik kartu dan data pribadi Anda seperti Nomor Kartu, Masa Berlaku Kartu, PIN, OTP, CVV/CVC, dll.
