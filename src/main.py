@@ -6,7 +6,7 @@ import logging
 from datetime import time
 from zoneinfo import ZoneInfo
 
-from telegram.ext import Application, CommandHandler, ContextTypes
+from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters
 
 from . import bca_parser, categorizer, config, db, gmail_client, summary, telegram_bot
 
@@ -51,10 +51,11 @@ async def poll_gmail(context: ContextTypes.DEFAULT_TYPE) -> None:
                 "raw_snippet": parsed.raw_snippet,
             }
             db.insert_transaction(txn)
-            await context.bot.send_message(
+            sent = await context.bot.send_message(
                 chat_id=config.TELEGRAM_CHAT_ID,
                 text=telegram_bot.format_alert(txn),
             )
+            db.set_telegram_message_id(mid, sent.message_id)
             log.info("Alerted transaction %s (%s)", mid, parsed.merchant)
         except Exception as e:
             log.exception("Failed to process message %s: %s", mid, e)
@@ -77,6 +78,12 @@ def main() -> None:
     app.add_handler(CommandHandler("start", telegram_bot.cmd_start))
     app.add_handler(CommandHandler("help", telegram_bot.cmd_help))
     app.add_handler(CommandHandler("summary", telegram_bot.cmd_summary))
+    app.add_handler(
+        MessageHandler(
+            filters.TEXT & filters.REPLY & ~filters.COMMAND,
+            telegram_bot.handle_recategorize,
+        )
+    )
 
     jq = app.job_queue
     jq.run_repeating(poll_gmail, interval=config.POLL_INTERVAL_SECONDS, first=5)

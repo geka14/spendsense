@@ -22,6 +22,14 @@ def get_conn():
 def init_db() -> None:
     with get_conn() as conn:
         conn.executescript(SCHEMA_PATH.read_text())
+        try:
+            conn.execute("ALTER TABLE transactions ADD COLUMN telegram_message_id INTEGER")
+        except sqlite3.OperationalError:
+            pass  # column already exists after the first migration
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_transactions_tg_msg "
+            "ON transactions(telegram_message_id)"
+        )
 
 
 def transaction_exists(message_id: str) -> bool:
@@ -68,6 +76,32 @@ def upsert_merchant_category(pattern: str, category: str, source: str = "rule") 
             DO UPDATE SET category = excluded.category, source = excluded.source
             """,
             (pattern, category, source),
+        )
+
+
+def set_telegram_message_id(gmail_message_id: str, telegram_message_id: int) -> None:
+    with get_conn() as conn:
+        conn.execute(
+            "UPDATE transactions SET telegram_message_id = ? WHERE gmail_message_id = ?",
+            (telegram_message_id, gmail_message_id),
+        )
+
+
+def get_transaction_by_telegram_message_id(telegram_message_id: int) -> dict | None:
+    with get_conn() as conn:
+        cur = conn.execute(
+            "SELECT * FROM transactions WHERE telegram_message_id = ?",
+            (telegram_message_id,),
+        )
+        row = cur.fetchone()
+        return dict(row) if row else None
+
+
+def update_transaction_category(gmail_message_id: str, category: str) -> None:
+    with get_conn() as conn:
+        conn.execute(
+            "UPDATE transactions SET category = ?, needs_review = 0 WHERE gmail_message_id = ?",
+            (category, gmail_message_id),
         )
 
 

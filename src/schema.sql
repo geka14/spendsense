@@ -11,8 +11,9 @@ CREATE TABLE IF NOT EXISTS transactions (
     occurred_at       TEXT,                            -- ISO-8601, Asia/Jakarta
     category          TEXT    NOT NULL DEFAULT 'Other',
     needs_review      INTEGER NOT NULL DEFAULT 0,      -- 0 = parsed ok, 1 = needs review
-    raw_snippet       TEXT,                            -- only for needs_review (customer no. redacted)
-    created_at        TEXT    NOT NULL DEFAULT (datetime('now'))
+    raw_snippet         TEXT,                            -- only for needs_review (customer no. redacted)
+    telegram_message_id INTEGER,                         -- Telegram message_id of the alert sent; NULL for pre-feature rows
+    created_at          TEXT    NOT NULL DEFAULT (datetime('now'))
 );
 
 CREATE INDEX IF NOT EXISTS idx_transactions_occurred_at ON transactions(occurred_at);
