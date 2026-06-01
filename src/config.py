@@ -25,8 +25,8 @@ DATABASE_PATH = os.getenv("DATABASE_PATH", "spendsense.db")
 TIMEZONE = os.getenv("TIMEZONE", "Asia/Jakarta")
 
 # --- Weekly summary schedule ---
-WEEKLY_SUMMARY_DAY = os.getenv("WEEKLY_SUMMARY_DAY", "mon")  # mon..sun
-WEEKLY_SUMMARY_HOUR = int(os.getenv("WEEKLY_SUMMARY_HOUR", "8"))
+WEEKLY_SUMMARY_DAY = os.getenv("WEEKLY_SUMMARY_DAY", "sun")  # mon..sun
+WEEKLY_SUMMARY_HOUR = int(os.getenv("WEEKLY_SUMMARY_HOUR", "18"))
 WEEKLY_SUMMARY_MINUTE = int(os.getenv("WEEKLY_SUMMARY_MINUTE", "0"))
 
 # --- Optional LLM categorization ---

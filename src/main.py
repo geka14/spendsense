@@ -63,7 +63,7 @@ async def poll_gmail(context: ContextTypes.DEFAULT_TYPE) -> None:
 async def weekly_summary_job(context: ContextTypes.DEFAULT_TYPE) -> None:
     await context.bot.send_message(
         chat_id=config.TELEGRAM_CHAT_ID,
-        text=summary.build_weekly_summary(previous=True),
+        text=summary.build_weekly_summary(previous=False),
     )
 
 

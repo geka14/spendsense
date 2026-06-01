@@ -29,13 +29,24 @@ def build_weekly_summary(previous: bool = False) -> str:
     label = f"{start.strftime('%d %b')} – {(end - timedelta(days=1)).strftime('%d %b %Y')}"
 
     if not rows:
-        return f"🗓 Weekly summary ({label})\nNo transactions recorded."
+        return f"📊 Weekly Summary\n🗓 {label}\n\nNo transactions recorded this week."
 
     total = sum(r["total"] for r in rows)
-    lines = [f"🗓 Weekly summary ({label})", ""]
-    for r in rows:
-        pct = (r["total"] / total * 100) if total else 0
-        lines.append(f"• {r['category']}: {format_rupiah(r['total'])} ({pct:.0f}%, {r['n']}x)")
     count = sum(r["n"] for r in rows)
-    lines += ["", f"Total: {format_rupiah(total)} across {count} transactions"]
+
+    lines = [
+        "📊 Weekly Summary",
+        f"🗓 {label}",
+        "",
+        f"💳 Total spent: {format_rupiah(total)} ({count} transactions)",
+        "",
+        "By category:",
+    ]
+
+    medals = ["🥇", "🥈", "🥉"]
+    for i, r in enumerate(rows):
+        pct = (r["total"] / total * 100) if total else 0
+        prefix = medals[i] if i < 3 else "   •"
+        lines.append(f"{prefix} {r['category']}: {format_rupiah(r['total'])} ({pct:.0f}%, {r['n']}x)")
+
     return "\n".join(lines)
