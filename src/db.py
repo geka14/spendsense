@@ -10,6 +10,7 @@ SCHEMA_PATH = Path(__file__).parent / "schema.sql"
 
 @contextmanager
 def get_conn():
+    Path(config.DATABASE_PATH).parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(config.DATABASE_PATH)
     conn.row_factory = sqlite3.Row
     try:
