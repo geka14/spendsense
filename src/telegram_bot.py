@@ -140,6 +140,13 @@ async def handle_recategorize(update: Update, context: ContextTypes.DEFAULT_TYPE
         )
         return
 
+    if update.message.text.strip().lower() == "remove":
+        db.exclude_transaction(txn["gmail_message_id"])
+        await update.message.reply_text(
+            f"🗑 {txn['merchant'] or 'Transaction'} removed from summaries."
+        )
+        return
+
     category = _normalize_category(update.message.text)
     db.update_transaction_category(txn["gmail_message_id"], category)
 

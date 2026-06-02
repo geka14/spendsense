@@ -31,7 +31,7 @@ def init_db() -> None:
             "CREATE INDEX IF NOT EXISTS idx_transactions_tg_msg "
             "ON transactions(telegram_message_id)"
         )
-        for col in ("is_reversal", "is_reversed"):
+        for col in ("is_reversal", "is_reversed", "is_excluded"):
             try:
                 conn.execute(
                     f"ALTER TABLE transactions ADD COLUMN {col} INTEGER NOT NULL DEFAULT 0"
@@ -115,6 +115,14 @@ def update_transaction_category(gmail_message_id: str, category: str) -> None:
         )
 
 
+def exclude_transaction(gmail_message_id: str) -> None:
+    with get_conn() as conn:
+        conn.execute(
+            "UPDATE transactions SET is_excluded = 1 WHERE gmail_message_id = ?",
+            (gmail_message_id,),
+        )
+
+
 def find_and_mark_reversed(merchant: str, amount: float) -> int | None:
     """Mark the most recent matching transaction as reversed. Returns its id or None."""
     with get_conn() as conn:
@@ -138,7 +146,7 @@ def find_and_mark_reversed(merchant: str, amount: float) -> int | None:
 
 
 def get_summary_between(start_iso: str, end_iso: str) -> list[dict]:
-    """Totals per category for [start, end), excluding needs_review, reversal, and reversed rows."""
+    """Totals per category for [start, end), excluding needs_review, reversal, reversed, and excluded rows."""
     with get_conn() as conn:
         cur = conn.execute(
             """
@@ -148,6 +156,7 @@ def get_summary_between(start_iso: str, end_iso: str) -> list[dict]:
               AND needs_review = 0
               AND is_reversal = 0
               AND is_reversed = 0
+              AND is_excluded = 0
             GROUP BY category
             ORDER BY total DESC
             """,
