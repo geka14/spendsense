@@ -220,7 +220,6 @@ def get_summary_between(start_iso: str, end_iso: str) -> list[dict]:
             WHERE occurred_at >= ? AND occurred_at < ?
               AND needs_review = 0
               AND is_reversal = 0
-              AND is_reversed = 0
               AND is_excluded = 0
             GROUP BY category
             ORDER BY total DESC
