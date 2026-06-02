@@ -146,7 +146,7 @@ async def handle_recategorize(update: Update, context: ContextTypes.DEFAULT_TYPE
     if txn.get("merchant"):
         from . import categorizer
         db.upsert_merchant_category(
-            categorizer._normalize(txn["merchant"]), category, source="manual"
+            categorizer._stable_merchant_key(txn["merchant"]), category, source="manual"
         )
 
     await update.message.reply_text(f"✅ {txn['merchant'] or 'Transaction'} → {category}")

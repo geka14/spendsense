@@ -90,6 +90,12 @@ def main() -> None:
     app.add_handler(CommandHandler("summary", telegram_bot.cmd_summary))
     app.add_handler(
         MessageHandler(
+            filters.TEXT & ~filters.COMMAND & filters.Regex(r"(?i)^\s*summary\s*$"),
+            telegram_bot.cmd_summary,
+        )
+    )
+    app.add_handler(
+        MessageHandler(
             filters.TEXT & filters.REPLY & ~filters.COMMAND,
             telegram_bot.handle_recategorize,
         )

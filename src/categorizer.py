@@ -2,6 +2,8 @@
 
 Order: learned DB mapping -> seed substring rules -> optional Claude fallback -> 'Other'.
 """
+import re
+
 from . import config, db
 
 CATEGORIES = [
@@ -32,13 +34,31 @@ def _normalize(merchant: str | None) -> str:
     return merchant.upper().strip() if merchant else ""
 
 
+def _stable_merchant_key(merchant: str | None) -> str:
+    """Return a normalised key with trailing order-ID tokens removed.
+
+    Strips the last space-delimited token (repeatedly) while it contains any digit,
+    so unique order/transaction suffixes don't prevent category reuse.
+      'TTS BY TKPD 1041025679'  -> 'TTS BY TKPD'
+      'GRAB* A-9CUBUMAWX4V7AV'  -> 'GRAB*'
+      'SHOPEEFOOD 3DS'           -> 'SHOPEEFOOD'
+    """
+    norm = _normalize(merchant)
+    if not norm:
+        return norm
+    tokens = norm.split()
+    while len(tokens) > 1 and re.search(r"\d", tokens[-1]):
+        tokens.pop()
+    return " ".join(tokens)
+
+
 def categorize(merchant: str | None) -> tuple[str, str]:
     """Return (category, source). source in {db, rule, llm, default}."""
     norm = _normalize(merchant)
     if not norm:
         return "Other", "default"
 
-    learned = db.get_category_for_merchant(norm)
+    learned = db.get_category_for_merchant(_stable_merchant_key(merchant))
     if learned:
         return learned, "db"
 
@@ -51,7 +71,7 @@ def categorize(merchant: str | None) -> tuple[str, str]:
     if config.USE_LLM_CATEGORIZATION:
         guess = llm_categorize(merchant)
         if guess:
-            db.upsert_merchant_category(norm, guess, source="llm")
+            db.upsert_merchant_category(_stable_merchant_key(merchant), guess, source="llm")
             return guess, "llm"
 
     return "Other", "default"
