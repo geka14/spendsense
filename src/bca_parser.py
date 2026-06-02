@@ -33,6 +33,7 @@ class ParsedTransaction:
     occurred_at: str | None  # ISO-8601 with Asia/Jakarta offset
     needs_review: bool
     raw_snippet: str | None
+    is_reversal: bool = False
 
 
 def html_to_text(html: str) -> str:
@@ -78,6 +79,8 @@ def _redact(text: str) -> str:
 def parse_bca_email(html_or_text: str) -> ParsedTransaction:
     text = html_to_text(html_or_text) if "<" in html_or_text else html_or_text
 
+    is_reversal = "reversal/void" in text.lower()
+
     merchant = _value_after_label(text, LABEL_MERCHANT)
     amount = _parse_amount(_value_after_label(text, LABEL_AMOUNT))
     occurred_at = _parse_date(_value_after_label(text, LABEL_DATE))
@@ -100,4 +103,5 @@ def parse_bca_email(html_or_text: str) -> ParsedTransaction:
         occurred_at=occurred_at,
         needs_review=needs_review,
         raw_snippet=snippet,
+        is_reversal=is_reversal,
     )

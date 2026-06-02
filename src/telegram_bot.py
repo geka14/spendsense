@@ -73,6 +73,15 @@ def _format_dt(iso: str | None) -> str:
         return iso or "unknown time"
 
 
+def format_reversal_alert(txn: dict) -> str:
+    return (
+        "↩️ BCA Reversal/Void\n"
+        f"-{summary.format_rupiah(txn['amount'])} — {txn['merchant']}\n"
+        f"{_format_dt(txn['occurred_at'])} WIB\n"
+        f"Card ....{txn.get('card_last4') or '????'} · {txn.get('transaction_type') or ''}"
+    )
+
+
 def format_alert(txn: dict) -> str:
     """Build the real-time alert text from a transaction dict."""
     if txn.get("needs_review"):

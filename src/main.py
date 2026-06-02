@@ -49,14 +49,24 @@ async def poll_gmail(context: ContextTypes.DEFAULT_TYPE) -> None:
                 "category": category,
                 "needs_review": 1 if parsed.needs_review else 0,
                 "raw_snippet": parsed.raw_snippet,
+                "is_reversal": 1 if parsed.is_reversal else 0,
+                "is_reversed": 0,
             }
             db.insert_transaction(txn)
-            sent = await context.bot.send_message(
-                chat_id=config.TELEGRAM_CHAT_ID,
-                text=telegram_bot.format_alert(txn),
-            )
-            db.set_telegram_message_id(mid, sent.message_id)
-            log.info("Alerted transaction %s (%s)", mid, parsed.merchant)
+            if parsed.is_reversal:
+                db.find_and_mark_reversed(parsed.merchant, parsed.amount)
+                await context.bot.send_message(
+                    chat_id=config.TELEGRAM_CHAT_ID,
+                    text=telegram_bot.format_reversal_alert(txn),
+                )
+                log.info("Reversal processed %s (%s)", mid, parsed.merchant)
+            else:
+                sent = await context.bot.send_message(
+                    chat_id=config.TELEGRAM_CHAT_ID,
+                    text=telegram_bot.format_alert(txn),
+                )
+                db.set_telegram_message_id(mid, sent.message_id)
+                log.info("Alerted transaction %s (%s)", mid, parsed.merchant)
         except Exception as e:
             log.exception("Failed to process message %s: %s", mid, e)
 

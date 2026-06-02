@@ -31,6 +31,13 @@ def init_db() -> None:
             "CREATE INDEX IF NOT EXISTS idx_transactions_tg_msg "
             "ON transactions(telegram_message_id)"
         )
+        for col in ("is_reversal", "is_reversed"):
+            try:
+                conn.execute(
+                    f"ALTER TABLE transactions ADD COLUMN {col} INTEGER NOT NULL DEFAULT 0"
+                )
+            except sqlite3.OperationalError:
+                pass
 
 
 def transaction_exists(message_id: str) -> bool:
@@ -48,10 +55,12 @@ def insert_transaction(txn: dict) -> None:
             """
             INSERT OR IGNORE INTO transactions
                 (gmail_message_id, merchant, amount, currency, transaction_type,
-                 card_last4, occurred_at, category, needs_review, raw_snippet)
+                 card_last4, occurred_at, category, needs_review, raw_snippet,
+                 is_reversal, is_reversed)
             VALUES
                 (:gmail_message_id, :merchant, :amount, :currency, :transaction_type,
-                 :card_last4, :occurred_at, :category, :needs_review, :raw_snippet)
+                 :card_last4, :occurred_at, :category, :needs_review, :raw_snippet,
+                 :is_reversal, :is_reversed)
             """,
             txn,
         )
@@ -106,14 +115,39 @@ def update_transaction_category(gmail_message_id: str, category: str) -> None:
         )
 
 
+def find_and_mark_reversed(merchant: str, amount: float) -> int | None:
+    """Mark the most recent matching transaction as reversed. Returns its id or None."""
+    with get_conn() as conn:
+        cur = conn.execute(
+            """
+            SELECT id FROM transactions
+            WHERE LOWER(merchant) = LOWER(?)
+              AND amount = ?
+              AND is_reversal = 0
+              AND is_reversed = 0
+            ORDER BY occurred_at DESC
+            LIMIT 1
+            """,
+            (merchant, amount),
+        )
+        row = cur.fetchone()
+        if row is None:
+            return None
+        conn.execute("UPDATE transactions SET is_reversed = 1 WHERE id = ?", (row["id"],))
+        return row["id"]
+
+
 def get_summary_between(start_iso: str, end_iso: str) -> list[dict]:
-    """Totals per category for [start, end), excluding needs_review rows."""
+    """Totals per category for [start, end), excluding needs_review, reversal, and reversed rows."""
     with get_conn() as conn:
         cur = conn.execute(
             """
             SELECT category, COUNT(*) AS n, SUM(amount) AS total
             FROM transactions
-            WHERE occurred_at >= ? AND occurred_at < ? AND needs_review = 0
+            WHERE occurred_at >= ? AND occurred_at < ?
+              AND needs_review = 0
+              AND is_reversal = 0
+              AND is_reversed = 0
             GROUP BY category
             ORDER BY total DESC
             """,

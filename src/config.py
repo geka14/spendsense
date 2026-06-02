@@ -16,7 +16,9 @@ GMAIL_CREDENTIALS_JSON = os.getenv("GMAIL_CREDENTIALS_JSON", "")
 GMAIL_TOKEN_JSON = os.getenv("GMAIL_TOKEN_JSON", "")
 GMAIL_QUERY = os.getenv(
     "GMAIL_QUERY",
-    'from:KartuKreditBCA@klikbca.com subject:"Credit Card Transaction Notification"',
+    'from:KartuKreditBCA@klikbca.com '
+    '(subject:"Credit Card Transaction Notification" OR '
+    'subject:"Credit Card Reversal/Void Transaction Notification")',
 )
 
 # --- App behaviour ---

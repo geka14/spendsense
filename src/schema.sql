@@ -13,6 +13,8 @@ CREATE TABLE IF NOT EXISTS transactions (
     needs_review      INTEGER NOT NULL DEFAULT 0,      -- 0 = parsed ok, 1 = needs review
     raw_snippet         TEXT,                            -- only for needs_review (customer no. redacted)
     telegram_message_id INTEGER,                         -- Telegram message_id of the alert sent; NULL for pre-feature rows
+    is_reversal         INTEGER NOT NULL DEFAULT 0,      -- 1 = this row is a reversal/void notification
+    is_reversed         INTEGER NOT NULL DEFAULT 0,      -- 1 = this row was cancelled by a subsequent reversal
     created_at          TEXT    NOT NULL DEFAULT (datetime('now'))
 );
 
