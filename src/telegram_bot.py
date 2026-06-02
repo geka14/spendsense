@@ -82,6 +82,19 @@ def format_reversal_alert(txn: dict) -> str:
     )
 
 
+def format_ambiguous_reversal_alert(txn: dict, candidates: list[dict]) -> str:
+    lines = [
+        "⚠️ Ambiguous reversal — multiple matching transactions",
+        f"-{summary.format_rupiah(txn['amount'])} — {txn['merchant']}",
+        "",
+        "Reply with the NUMBER of the transaction that was voided:",
+    ]
+    for i, c in enumerate(candidates, start=1):
+        lines.append(f"{i}. {_format_dt(c['occurred_at'])} WIB")
+    lines += ["", 'Reply "skip" to leave both as-is.']
+    return "\n".join(lines)
+
+
 def format_alert(txn: dict) -> str:
     """Build the real-time alert text from a transaction dict."""
     if txn.get("needs_review"):
@@ -140,13 +153,52 @@ async def handle_recategorize(update: Update, context: ContextTypes.DEFAULT_TYPE
         )
         return
 
-    if update.message.text.strip().lower() == "remove":
+    text = update.message.text.strip().lower()
+
+    # Pending ambiguous reversal disambiguation
+    if txn.get("is_reversal") and txn.get("pending_reversal_candidates") is not None:
+        import json
+        candidate_ids = json.loads(txn["pending_reversal_candidates"])
+        if text == "skip":
+            db.clear_pending_reversal_candidates(txn["gmail_message_id"])
+            await update.message.reply_text("Skipped — no transaction marked as reversed.")
+            return
+        if text.isdigit():
+            idx = int(text) - 1
+            if 0 <= idx < len(candidate_ids):
+                db.mark_transaction_reversed(candidate_ids[idx])
+                db.clear_pending_reversal_candidates(txn["gmail_message_id"])
+                await update.message.reply_text(f"✅ Transaction #{int(text)} marked as reversed.")
+            else:
+                await update.message.reply_text(
+                    f"Invalid number. Reply 1–{len(candidate_ids)} or 'skip'."
+                )
+            return
+        await update.message.reply_text(
+            f"Reply with a number (1–{len(candidate_ids)}) or 'skip'."
+        )
+        return
+
+    # Undo a wrong auto-reversal
+    if text == "undo":
+        if txn.get("is_reversed"):
+            db.undo_reversal(txn["id"])
+            await update.message.reply_text(
+                f"↩️ Reversal undone — {txn['merchant'] or 'transaction'} restored to summary."
+            )
+        else:
+            await update.message.reply_text("This transaction is not marked as reversed.")
+        return
+
+    # Remove from summary
+    if text == "remove":
         db.exclude_transaction(txn["gmail_message_id"])
         await update.message.reply_text(
             f"🗑 {txn['merchant'] or 'Transaction'} removed from summaries."
         )
         return
 
+    # Recategorize
     category = _normalize_category(update.message.text)
     db.update_transaction_category(txn["gmail_message_id"], category)
 

@@ -54,12 +54,38 @@ async def poll_gmail(context: ContextTypes.DEFAULT_TYPE) -> None:
             }
             db.insert_transaction(txn)
             if parsed.is_reversal:
-                db.find_and_mark_reversed(parsed.merchant, parsed.amount)
-                await context.bot.send_message(
-                    chat_id=config.TELEGRAM_CHAT_ID,
-                    text=telegram_bot.format_reversal_alert(txn),
+                candidates = db.find_reversal_candidates(
+                    parsed.merchant, parsed.amount, parsed.occurred_at
                 )
-                log.info("Reversal processed %s (%s)", mid, parsed.merchant)
+                if len(candidates) == 1:
+                    db.mark_transaction_reversed(candidates[0]["id"])
+                    sent = await context.bot.send_message(
+                        chat_id=config.TELEGRAM_CHAT_ID,
+                        text=telegram_bot.format_reversal_alert(txn),
+                    )
+                    db.set_telegram_message_id(mid, sent.message_id)
+                    log.info("Reversal auto-matched %s (%s)", mid, parsed.merchant)
+                elif len(candidates) == 0:
+                    sent = await context.bot.send_message(
+                        chat_id=config.TELEGRAM_CHAT_ID,
+                        text=telegram_bot.format_reversal_alert(txn)
+                        + "\n\n⚠️ No matching transaction found to void.",
+                    )
+                    db.set_telegram_message_id(mid, sent.message_id)
+                    db.set_pending_reversal_candidates(mid, [])
+                    log.info("Reversal no match %s (%s)", mid, parsed.merchant)
+                else:
+                    candidate_ids = [c["id"] for c in candidates]
+                    db.set_pending_reversal_candidates(mid, candidate_ids)
+                    sent = await context.bot.send_message(
+                        chat_id=config.TELEGRAM_CHAT_ID,
+                        text=telegram_bot.format_ambiguous_reversal_alert(txn, candidates),
+                    )
+                    db.set_telegram_message_id(mid, sent.message_id)
+                    log.info(
+                        "Reversal ambiguous %s (%s), %d candidates",
+                        mid, parsed.merchant, len(candidates),
+                    )
             else:
                 sent = await context.bot.send_message(
                     chat_id=config.TELEGRAM_CHAT_ID,

@@ -1,4 +1,5 @@
 """SQLite access layer. All reads/writes go through here."""
+import json
 import sqlite3
 from contextlib import contextmanager
 from pathlib import Path
@@ -38,6 +39,10 @@ def init_db() -> None:
                 )
             except sqlite3.OperationalError:
                 pass
+        try:
+            conn.execute("ALTER TABLE transactions ADD COLUMN pending_reversal_candidates TEXT")
+        except sqlite3.OperationalError:
+            pass
 
 
 def transaction_exists(message_id: str) -> bool:
@@ -123,26 +128,50 @@ def exclude_transaction(gmail_message_id: str) -> None:
         )
 
 
-def find_and_mark_reversed(merchant: str, amount: float) -> int | None:
-    """Mark the most recent matching transaction as reversed. Returns its id or None."""
+def find_reversal_candidates(merchant: str, amount: float, before_iso: str) -> list[dict]:
+    """Return all eligible transactions that could be the original for a reversal, oldest-first."""
     with get_conn() as conn:
         cur = conn.execute(
             """
-            SELECT id FROM transactions
+            SELECT id, merchant, amount, occurred_at, gmail_message_id
+            FROM transactions
             WHERE LOWER(merchant) = LOWER(?)
               AND amount = ?
               AND is_reversal = 0
               AND is_reversed = 0
-            ORDER BY occurred_at DESC
-            LIMIT 1
+              AND is_excluded = 0
+              AND occurred_at < ?
+            ORDER BY occurred_at ASC
             """,
-            (merchant, amount),
+            (merchant, amount, before_iso),
         )
-        row = cur.fetchone()
-        if row is None:
-            return None
-        conn.execute("UPDATE transactions SET is_reversed = 1 WHERE id = ?", (row["id"],))
-        return row["id"]
+        return [dict(r) for r in cur.fetchall()]
+
+
+def mark_transaction_reversed(transaction_id: int) -> None:
+    with get_conn() as conn:
+        conn.execute("UPDATE transactions SET is_reversed = 1 WHERE id = ?", (transaction_id,))
+
+
+def undo_reversal(transaction_id: int) -> None:
+    with get_conn() as conn:
+        conn.execute("UPDATE transactions SET is_reversed = 0 WHERE id = ?", (transaction_id,))
+
+
+def set_pending_reversal_candidates(gmail_message_id: str, candidate_ids: list[int]) -> None:
+    with get_conn() as conn:
+        conn.execute(
+            "UPDATE transactions SET pending_reversal_candidates = ? WHERE gmail_message_id = ?",
+            (json.dumps(candidate_ids), gmail_message_id),
+        )
+
+
+def clear_pending_reversal_candidates(gmail_message_id: str) -> None:
+    with get_conn() as conn:
+        conn.execute(
+            "UPDATE transactions SET pending_reversal_candidates = NULL WHERE gmail_message_id = ?",
+            (gmail_message_id,),
+        )
 
 
 def get_summary_between(start_iso: str, end_iso: str) -> list[dict]:

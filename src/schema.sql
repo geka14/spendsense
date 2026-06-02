@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS transactions (
     is_reversal         INTEGER NOT NULL DEFAULT 0,      -- 1 = this row is a reversal/void notification
     is_reversed         INTEGER NOT NULL DEFAULT 0,      -- 1 = this row was cancelled by a subsequent reversal
     is_excluded         INTEGER NOT NULL DEFAULT 0,      -- 1 = manually removed from summaries
+    pending_reversal_candidates TEXT,                    -- JSON list of candidate IDs when reversal is ambiguous
     created_at          TEXT    NOT NULL DEFAULT (datetime('now'))
 );
 
