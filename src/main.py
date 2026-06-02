@@ -115,6 +115,7 @@ def main() -> None:
     app.add_handler(CommandHandler("help", telegram_bot.cmd_help))
     app.add_handler(CommandHandler("summary", telegram_bot.cmd_summary))
     app.add_handler(CommandHandler("resend", telegram_bot.cmd_resend))
+    app.add_handler(CommandHandler("cleardb", telegram_bot.cmd_cleardb))
     app.add_handler(
         MessageHandler(
             filters.TEXT & ~filters.COMMAND & filters.Regex(r"(?i)^\s*summary\s*$"),

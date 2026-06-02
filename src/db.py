@@ -175,18 +175,39 @@ def clear_pending_reversal_candidates(gmail_message_id: str) -> None:
 
 
 def get_transactions_from(from_iso: str) -> list[dict]:
-    """Return all non-needs_review transactions from from_iso onwards, oldest-first."""
+    """Return non-needs_review transactions for resending.
+
+    Normal transactions: occurred_at >= from_iso.
+    Reversal transactions: all of them (date may be NULL or pre-cutoff).
+    Results ordered oldest-first; NULL occurred_at sorts last.
+    """
     with get_conn() as conn:
         cur = conn.execute(
             """
             SELECT * FROM transactions
-            WHERE occurred_at >= ?
-              AND needs_review = 0
-            ORDER BY occurred_at ASC
+            WHERE needs_review = 0
+              AND (
+                (is_reversal = 0 AND occurred_at >= ?)
+                OR is_reversal = 1
+              )
+            ORDER BY COALESCE(occurred_at, '9999-12-31') ASC
             """,
             (from_iso,),
         )
         return [dict(r) for r in cur.fetchall()]
+
+
+def count_transactions() -> int:
+    with get_conn() as conn:
+        cur = conn.execute("SELECT COUNT(*) FROM transactions")
+        return cur.fetchone()[0]
+
+
+def clear_all_transactions() -> int:
+    """Delete every row in transactions. Returns the number of rows deleted."""
+    with get_conn() as conn:
+        cur = conn.execute("DELETE FROM transactions")
+        return cur.rowcount
 
 
 def get_summary_between(start_iso: str, end_iso: str) -> list[dict]:

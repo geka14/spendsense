@@ -78,10 +78,11 @@ def _format_dt(iso: str | None) -> str:
 
 
 def format_reversal_alert(txn: dict) -> str:
+    amt = f"-{summary.format_rupiah(txn['amount'])}" if txn.get("amount") is not None else "Rp ???"
     return (
         "↩️ BCA Reversal/Void\n"
-        f"-{summary.format_rupiah(txn['amount'])} — {txn['merchant']}\n"
-        f"{_format_dt(txn['occurred_at'])} WIB\n"
+        f"{amt} — {txn.get('merchant') or '???'}\n"
+        f"{_format_dt(txn.get('occurred_at'))} WIB\n"
         f"Card ....{txn.get('card_last4') or '????'} · {txn.get('transaction_type') or ''}"
     )
 
@@ -178,6 +179,21 @@ async def cmd_resend(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
             log.warning("Resend failed for %s: %s", txn.get("gmail_message_id"), e)
 
     await update.message.reply_text(f"✅ Done — {sent_count}/{len(txns)} alerts resent.")
+
+
+@restricted
+async def cmd_cleardb(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Delete all transaction rows. Requires /cleardb CONFIRM to proceed."""
+    args = context.args
+    if not args or args[0] != "CONFIRM":
+        count = db.count_transactions()
+        await update.message.reply_text(
+            f"⚠️ This will permanently delete all {count} transaction rows.\n"
+            "Send /cleardb CONFIRM to proceed."
+        )
+        return
+    deleted = db.clear_all_transactions()
+    await update.message.reply_text(f"🗑 Done — {deleted} transactions deleted.")
 
 
 @restricted
