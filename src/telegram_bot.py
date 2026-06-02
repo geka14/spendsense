@@ -1,6 +1,10 @@
 """Telegram message formatting and command handlers (locked to the owner)."""
+import asyncio
+import logging
 from datetime import datetime
 from functools import wraps
+
+log = logging.getLogger("spendsense")
 
 from telegram import Update
 from telegram.ext import ContextTypes
@@ -137,6 +141,43 @@ async def cmd_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
 @restricted
 async def cmd_summary(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(summary.build_weekly_summary(previous=False))
+
+
+@restricted
+async def cmd_resend(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Resend transaction alerts from a date (YYYY-MM-DD). Updates telegram_message_id."""
+    args = context.args
+    from_date = args[0] if args else "2026-06-01"
+    try:
+        # Parse as start-of-day Asia/Jakarta; ISO string comparison works lexicographically
+        datetime.strptime(from_date, "%Y-%m-%d")
+        from_iso = f"{from_date}T00:00:00+07:00"
+    except ValueError:
+        await update.message.reply_text(f"Invalid date '{from_date}'. Use YYYY-MM-DD.")
+        return
+
+    txns = db.get_transactions_from(from_iso)
+    if not txns:
+        await update.message.reply_text(f"No transactions found from {from_date}.")
+        return
+
+    await update.message.reply_text(f"Resending {len(txns)} alerts from {from_date}…")
+
+    sent_count = 0
+    for txn in txns:
+        try:
+            if txn.get("is_reversal"):
+                text = format_reversal_alert(txn)
+            else:
+                text = format_alert(txn)
+            sent = await context.bot.send_message(chat_id=config.TELEGRAM_CHAT_ID, text=text)
+            db.set_telegram_message_id(txn["gmail_message_id"], sent.message_id)
+            sent_count += 1
+            await asyncio.sleep(0.35)  # stay under Telegram's 30 msg/s limit
+        except Exception as e:
+            log.warning("Resend failed for %s: %s", txn.get("gmail_message_id"), e)
+
+    await update.message.reply_text(f"✅ Done — {sent_count}/{len(txns)} alerts resent.")
 
 
 @restricted

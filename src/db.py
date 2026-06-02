@@ -174,6 +174,21 @@ def clear_pending_reversal_candidates(gmail_message_id: str) -> None:
         )
 
 
+def get_transactions_from(from_iso: str) -> list[dict]:
+    """Return all non-needs_review transactions from from_iso onwards, oldest-first."""
+    with get_conn() as conn:
+        cur = conn.execute(
+            """
+            SELECT * FROM transactions
+            WHERE occurred_at >= ?
+              AND needs_review = 0
+            ORDER BY occurred_at ASC
+            """,
+            (from_iso,),
+        )
+        return [dict(r) for r in cur.fetchall()]
+
+
 def get_summary_between(start_iso: str, end_iso: str) -> list[dict]:
     """Totals per category for [start, end), excluding needs_review, reversal, reversed, and excluded rows."""
     with get_conn() as conn:
