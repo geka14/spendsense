@@ -217,5 +217,6 @@ async def handle_recategorize(update: Update, context: ContextTypes.DEFAULT_TYPE
         db.upsert_merchant_category(
             categorizer._stable_merchant_key(txn["merchant"]), category, source="manual"
         )
+        db.update_category_for_merchant(txn["merchant"], category)
 
     await update.message.reply_text(f"✅ {txn['merchant'] or 'Transaction'} → {category}")

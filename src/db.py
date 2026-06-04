@@ -120,6 +120,15 @@ def update_transaction_category(gmail_message_id: str, category: str) -> None:
         )
 
 
+def update_category_for_merchant(merchant: str, category: str) -> None:
+    """Update category for ALL existing transactions from this merchant (case-insensitive)."""
+    with get_conn() as conn:
+        conn.execute(
+            "UPDATE transactions SET category = ? WHERE LOWER(merchant) = LOWER(?)",
+            (category, merchant),
+        )
+
+
 def exclude_transaction(gmail_message_id: str) -> None:
     with get_conn() as conn:
         conn.execute(
@@ -220,6 +229,7 @@ def get_summary_between(start_iso: str, end_iso: str) -> list[dict]:
             WHERE occurred_at >= ? AND occurred_at < ?
               AND needs_review = 0
               AND is_reversal = 0
+              AND is_reversed = 0
               AND is_excluded = 0
             GROUP BY category
             ORDER BY total DESC
