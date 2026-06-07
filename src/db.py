@@ -53,10 +53,10 @@ def transaction_exists(message_id: str) -> bool:
         return cur.fetchone() is not None
 
 
-def insert_transaction(txn: dict) -> None:
-    """Insert a transaction. `txn` keys must match the columns below."""
+def insert_transaction(txn: dict) -> bool:
+    """Insert a transaction. Returns True if actually inserted, False if already existed."""
     with get_conn() as conn:
-        conn.execute(
+        cur = conn.execute(
             """
             INSERT OR IGNORE INTO transactions
                 (gmail_message_id, merchant, amount, currency, transaction_type,
@@ -69,6 +69,7 @@ def insert_transaction(txn: dict) -> None:
             """,
             txn,
         )
+        return cur.rowcount > 0
 
 
 def get_category_for_merchant(merchant_norm: str):

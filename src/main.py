@@ -2,6 +2,7 @@
 
 Run from the repo root:  python -m src.main
 """
+import asyncio
 import logging
 from datetime import time
 from zoneinfo import ZoneInfo
@@ -17,64 +18,81 @@ log = logging.getLogger("spendsense")
 # NOTE: verify against your installed PTB version and test that the job fires.
 _DAY_MAP = {"mon": 0, "tue": 1, "wed": 2, "thu": 3, "fri": 4, "sat": 5, "sun": 6}
 
+# Prevents concurrent poll_gmail invocations from double-alerting the same message.
+_poll_lock: asyncio.Lock | None = None
+
 
 async def poll_gmail(context: ContextTypes.DEFAULT_TYPE) -> None:
     """Check Gmail for new BCA transaction emails; store + alert for each new one."""
-    service = context.application.bot_data["gmail"]
-    try:
-        ids = gmail_client.list_recent_message_ids(service, max_results=50)
-    except Exception as e:  # network/auth hiccup — try again next tick
-        log.warning("Gmail list failed: %s", e)
+    global _poll_lock
+    if _poll_lock is None:
+        _poll_lock = asyncio.Lock()
+
+    if _poll_lock.locked():
+        log.debug("Poll already in progress, skipping this tick")
         return
 
-    for mid in reversed(ids):  # process oldest first
-        if db.transaction_exists(mid):
-            continue
+    async with _poll_lock:
+        service = context.application.bot_data["gmail"]
         try:
-            body = gmail_client.get_message_body(service, mid)
-            parsed = bca_parser.parse_bca_email(body)
+            ids = gmail_client.list_recent_message_ids(service, max_results=50)
+        except Exception as e:  # network/auth hiccup — try again next tick
+            log.warning("Gmail list failed: %s", e)
+            return
 
-            category = "Other"
-            if not parsed.needs_review:
-                category, _ = categorizer.categorize(parsed.merchant)
+        for mid in reversed(ids):  # process oldest first
+            if db.transaction_exists(mid):
+                continue
+            try:
+                body = gmail_client.get_message_body(service, mid)
+                parsed = bca_parser.parse_bca_email(body)
 
-            txn = {
-                "gmail_message_id": mid,
-                "merchant": parsed.merchant,
-                "amount": parsed.amount,
-                "currency": parsed.currency,
-                "transaction_type": parsed.transaction_type,
-                "card_last4": parsed.card_last4,
-                "occurred_at": parsed.occurred_at,
-                "category": category,
-                "needs_review": 1 if parsed.needs_review else 0,
-                "raw_snippet": parsed.raw_snippet,
-                "is_reversal": 1 if parsed.is_reversal else 0,
-                "is_reversed": 0,
-            }
-            db.insert_transaction(txn)
-            if parsed.is_reversal:
-                sent = await context.bot.send_message(
-                    chat_id=config.TELEGRAM_CHAT_ID,
-                    text=telegram_bot.format_reversal_alert(txn),
-                )
-                db.set_telegram_message_id(mid, sent.message_id)
-                log.info("Reversal alerted %s (%s)", mid, parsed.merchant)
-            else:
-                sent = await context.bot.send_message(
-                    chat_id=config.TELEGRAM_CHAT_ID,
-                    text=telegram_bot.format_alert(txn),
-                )
-                db.set_telegram_message_id(mid, sent.message_id)
-                log.info("Alerted transaction %s (%s)", mid, parsed.merchant)
-        except Exception as e:
-            log.exception("Failed to process message %s: %s", mid, e)
+                category = "Other"
+                if not parsed.needs_review:
+                    category, _ = categorizer.categorize(parsed.merchant)
+
+                txn = {
+                    "gmail_message_id": mid,
+                    "merchant": parsed.merchant,
+                    "amount": parsed.amount,
+                    "currency": parsed.currency,
+                    "transaction_type": parsed.transaction_type,
+                    "card_last4": parsed.card_last4,
+                    "occurred_at": parsed.occurred_at,
+                    "category": category,
+                    "needs_review": 1 if parsed.needs_review else 0,
+                    "raw_snippet": parsed.raw_snippet,
+                    "is_reversal": 1 if parsed.is_reversal else 0,
+                    "is_reversed": 0,
+                }
+                inserted = db.insert_transaction(txn)
+                if not inserted:
+                    # Already handled by a concurrent execution; skip the alert.
+                    continue
+                if parsed.is_reversal:
+                    sent = await context.bot.send_message(
+                        chat_id=config.TELEGRAM_CHAT_ID,
+                        text=telegram_bot.format_reversal_alert(txn),
+                    )
+                    db.set_telegram_message_id(mid, sent.message_id)
+                    log.info("Reversal alerted %s (%s)", mid, parsed.merchant)
+                else:
+                    sent = await context.bot.send_message(
+                        chat_id=config.TELEGRAM_CHAT_ID,
+                        text=telegram_bot.format_alert(txn),
+                    )
+                    db.set_telegram_message_id(mid, sent.message_id)
+                    log.info("Alerted transaction %s (%s)", mid, parsed.merchant)
+            except Exception as e:
+                log.exception("Failed to process message %s: %s", mid, e)
 
 
 async def weekly_summary_job(context: ContextTypes.DEFAULT_TYPE) -> None:
+    # previous=True: summarises the completed week (Mon–Sun) so recategorisations
+    # made throughout the week are all captured before the report fires on Monday.
     await context.bot.send_message(
         chat_id=config.TELEGRAM_CHAT_ID,
-        text=summary.build_weekly_summary(previous=False),
+        text=summary.build_weekly_summary(previous=True),
     )
 
 
