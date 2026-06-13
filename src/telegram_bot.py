@@ -118,6 +118,7 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "SpendSense is running.\n"
         "/summary — this week's spending by category\n"
+        "/monthly — this month's spending by category\n"
         "/help — show this message"
     )
 
@@ -130,6 +131,11 @@ async def cmd_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
 @restricted
 async def cmd_summary(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(summary.build_weekly_summary(previous=False))
+
+
+@restricted
+async def cmd_monthly(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(summary.build_monthly_summary(previous=False))
 
 
 @restricted

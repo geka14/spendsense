@@ -31,6 +31,11 @@ WEEKLY_SUMMARY_DAY = os.getenv("WEEKLY_SUMMARY_DAY", "mon")  # mon..sun
 WEEKLY_SUMMARY_HOUR = int(os.getenv("WEEKLY_SUMMARY_HOUR", "18"))
 WEEKLY_SUMMARY_MINUTE = int(os.getenv("WEEKLY_SUMMARY_MINUTE", "0"))
 
+# --- Monthly summary schedule ---
+MONTHLY_SUMMARY_DAY = int(os.getenv("MONTHLY_SUMMARY_DAY", "1"))  # 1..28
+MONTHLY_SUMMARY_HOUR = int(os.getenv("MONTHLY_SUMMARY_HOUR", "9"))
+MONTHLY_SUMMARY_MINUTE = int(os.getenv("MONTHLY_SUMMARY_MINUTE", "0"))
+
 # --- Optional LLM categorization ---
 USE_LLM_CATEGORIZATION = os.getenv("USE_LLM_CATEGORIZATION", "false").lower() == "true"
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")

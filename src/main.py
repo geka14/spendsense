@@ -96,6 +96,14 @@ async def weekly_summary_job(context: ContextTypes.DEFAULT_TYPE) -> None:
     )
 
 
+async def monthly_summary_job(context: ContextTypes.DEFAULT_TYPE) -> None:
+    # previous=True: fires on the 1st of the new month, summarises the just-completed month.
+    await context.bot.send_message(
+        chat_id=config.TELEGRAM_CHAT_ID,
+        text=summary.build_monthly_summary(previous=True),
+    )
+
+
 def main() -> None:
     config.validate()
     db.init_db()
@@ -106,6 +114,7 @@ def main() -> None:
     app.add_handler(CommandHandler("start", telegram_bot.cmd_start))
     app.add_handler(CommandHandler("help", telegram_bot.cmd_help))
     app.add_handler(CommandHandler("summary", telegram_bot.cmd_summary))
+    app.add_handler(CommandHandler("monthly", telegram_bot.cmd_monthly))
     app.add_handler(CommandHandler("resend", telegram_bot.cmd_resend))
     app.add_handler(CommandHandler("cleardb", telegram_bot.cmd_cleardb))
     app.add_handler(
@@ -133,6 +142,16 @@ def main() -> None:
             tzinfo=ZoneInfo(config.TIMEZONE),
         ),
         days=(weekday,),
+    )
+
+    jq.run_monthly(
+        monthly_summary_job,
+        when=time(
+            hour=config.MONTHLY_SUMMARY_HOUR,
+            minute=config.MONTHLY_SUMMARY_MINUTE,
+            tzinfo=ZoneInfo(config.TIMEZONE),
+        ),
+        day=config.MONTHLY_SUMMARY_DAY,
     )
 
     log.info("SpendSense started. Polling Gmail every %ss.", config.POLL_INTERVAL_SECONDS)
